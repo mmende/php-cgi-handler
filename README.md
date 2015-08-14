@@ -51,9 +51,11 @@ The script could then called via cli like `php demo/demo.php -file test.audio -t
 
 ## Methods
 
-`get(option, index)` - Returns a value for a specific option
-`getAll()` - Returns an array with all values
-`nonOptionalsSet()` - Returns if all non-optional values where specified
-`printManual()` - Prints a manual created with the descriptions specified
+Method | Description
+-------|------------
+`get(option, index)` | Returns a value for a specific option
+`getAll()` | Returns an array with all values
+`nonOptionalsSet()` | Returns if all non-optional values where specified
+`printManual()` | Prints a manual created with the descriptions specified
 
 Options passed without a flag are automatically stored in the option `common`
