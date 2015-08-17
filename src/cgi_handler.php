@@ -233,14 +233,15 @@ namespace CGI {
 					$this->printManual();
 					die;
 				}
-				// Check all values for optionality
-				foreach ($option->values as $value) {
-					if($value->optional===false && $value->set===false) {
-						echo "The option " . $option->name . " has non optional values.\n";
-						$this->printManual();
-						die;
+				// Check all values for optionality if the option is set
+				if($option->set===true)
+					foreach ($option->values as $value) {
+						if($value->optional===false && $value->set===false) {
+							echo "The option " . $option->name . " has non optional values.\n";
+							$this->printManual();
+							die;
+						}
 					}
-				}
 			}
 		}
 
