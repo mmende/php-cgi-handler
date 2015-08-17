@@ -1,198 +1,256 @@
 <?php
 /**
- * This script helps cgi parameter handling by specifying flags and specific value types expected for them
+ * The MIT License (MIT)
+ * 
+ * Copyright (c) 2015 Martin Mende
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
-/**
- * These are the available types
- */
-abstract class CGI_TYPE {
-	const STRING = 0;
-	const BOOL = 1;
-	const INT = 2;
-	const FLOAT = 3;
-}
-
-/**
- * This class processes the command line arguments
- */
-class CGI_Handler {
-
-	private $flags = [];
-	private $non_optionals_set = true;
-
-	function __construct($flags=[]) {
-		$this->flags = $flags;
-		$this->processArgs();
-		$this->checkForOptionals();
+namespace CGI {
+	/**
+	 * These are the available types
+	 */
+	abstract class Type {
+		const STRING = 0;
+		const BOOL = 1;
+		const INT = 2;
+		const FLOAT = 3;
 	}
 
-	/**
-	 * Returns a value for a given flag
-	 *
-	 * @param  string  $value The flags name
-	 * @param  integer $index An optional index if the flag contains several values
-	 *
-	 * @return mixed          The specific value if such was found or false otherwise
-	 */
-	public function get($value, $index=0) {
-		// return false if the flag does not exist
-		if(array_key_exists($value, $this->flags)===false) {
-			//echo "Flag $value does not exist...\n";
-			return false;
+	class Value {
+		public $type;
+		public $description;
+		public $optional;
+
+		public $value = '';
+		public $set = false;
+
+		function __construct($type, $description='', $default='', $optional=true) {
+			$this->type = $type;
+			$this->description = $description;
+			$this->value = $default;
+			$this->optional = $optional;
 		}
-		// return false if values does not exist
-		if(array_key_exists('values', $this->flags[$value])===false) {
-			//echo "Value for $value was not specified...\n";
-			return false;
+
+		public function set($value)
+		{
+			$this->value = $this->getTypedValue($value);
+			$this->set = true;
 		}
-		// return false if the index is out of range
-		if($index >= count($this->flags[$value]['values'])) {
-			//echo "Index $index not in range of $value values...\n";
-			return false;
+
+		public function getPrintableType()
+		{
+			if($this->type===Type::STRING) return "string";
+			if($this->type===Type::BOOL) return "bool";
+			if($this->type===Type::INT) return "int";
+			if($this->type===Type::FLOAT) return "float";
+			return "Unknown";
 		}
-		return $this->flags[$value]['values'][$index];
+
+		/**
+		 * Returns the casted value with it's specific type
+		 *
+		 * @param  CGI_TYPE $cgi_type The data type
+		 * @param  mixed    $value    The value
+		 *
+		 * @return mixed              The casted type or the original value on fail
+		 */
+		private function getTypedValue($value) {
+			if($this->type===Type::STRING) return strval($value);
+			if($this->type===Type::BOOL) return boolval($value);
+			if($this->type===Type::INT) return intval($value);
+			if($this->type===Type::FLOAT) return doubleval($value);
+			return $value;
+		}
 	}
 
-	/**
-	 * Returns all values
-	 *
-	 * @return array An array with flags as keynames and values as value array
-	 */
-	public function getAll()
-	{
-		// Reshape to flags[ flag => [value1, value2], flag2 => [value1] ]
-		$reshaped = [];
-		foreach ($this->flags as $flag => $values) {
-			if(array_key_exists('values', $values)) {
-				$reshaped[$flag] = $values['values'];
+	class Option {
+		public $name;
+		public $description;
+		public $optional;
+
+		public $values;
+		public $set = false;
+
+		function __construct($name, $values=[], $description='', $optional=true) {
+			$this->name = $name;
+			$this->values = $values;
+			$this->description = $description;
+			$this->optional = $optional;
+		}
+
+		public function setValue($value, $index=0)
+		{
+			if( count($this->values) > $index ) {
+				$theValue = $this->values[$index];
+				$theValue->set($value);
 			} else {
-				$reshaped[$flag] = [false];
+				echo "Index $index out of value range\n";
 			}
 		}
-		return $reshaped;
-	}
 
-	/**
-	 * Returns if all non optional flags where set
-	 *
-	 * @return bool If all non optionals where set
-	 */
-	public function nonOptionalsSet()
-	{
-		return $this->non_optionals_set;
-	}
-
-	/**
-	 * Prints the manual
-	 */
-	public function printManual()
-	{
-		global $argv;
-		echo "Usage: php " . $argv[0] . " <options>\n\n";
-		echo "Options:\n";
-		foreach ($this->flags as $flag => $values) {
-			$description = array_key_exists('description', $values) ? $values['description'] : '';
-			if(array_key_exists('optional', $values) && $values['optional']===false) {
-				echo "-" . $flag . "\t\t" . $description . "\n";
+		public function getValue($index)
+		{
+			if( count($this->values) > $index ) {
+				return $this->values[$index]->value;
 			} else {
-				echo "[-" . $flag . "]\t\t" . $description . "\n";
+				return false;
 			}
+		}
+
+		public function setTrue()
+		{
+			array_push($this->values, new Value(Type::BOOL, '', true));
 		}
 	}
 
-	/**
-	 * Processes all command line arguments
-	 */
-	private function processArgs() {
-		global $argc, $argv;
-		// Iterate over all flags or values
-		for ($i = 1; $i < $argc; $i++) { 
-			$is_flag = strcmp(substr($argv[$i], 0, 1), '-')===0;
-			$flag = $is_flag ? substr($argv[$i], 1) : $argv[$i];
+	class Handler {
 
-			//echo $is_flag ? "Flag " . $argv[$i] . " detected...\n" : "Non flag detected " . $argv[$i] . "\n";
-			if($is_flag && array_key_exists($flag, $this->flags)) {
+		private $options;
+		private $flagPrefix;
 
-				// The key was found in the list of flags
-				if(array_key_exists('types', $this->flags[$flag])) {
+		function __construct($options=[], $flagPrefix='-') {
+			$this->options = $options;
+			$this->flagPrefix = $flagPrefix;
 
-					// Loop over values and check their types
-					for ($j = 0; $j < count($this->flags[$flag]['types']); $j++) {
-						// Get the next value from cli
-						++$i;
-						
-						// Check if this is another flag
-						$no_value = strcmp(substr($argv[$i], 0, 1), '-')===0;
-						if($no_value) {
-							//echo "$j value for $flag not specified";
-							$i--;
-							break;
-						}
+			$this->processOptions();
 
-						// Try to add the value with it's specified type
-						$this->flags[$flag]['values'][$j] = $this->getValueByType( $this->flags[$flag]['types'][$j], $argv[$i] );
-					}
+			//print_r($this->options);
+			$this->checkOptionals();
+		}
 
+		public function nonOptionalsSet()
+		{
+			return false;
+		}
 
+		public function get($flag, $value=0)
+		{
+			$option = $this->getOption($flag);
+			if($option!==false) {
+				return $option->getValue($value);
+			}
+		}
+
+		public function getAll()
+		{
+			$values = [];
+			foreach ($this->options as $option) {
+				$values[$option->name] = [];
+				$i = 0;
+				foreach ($option->values as $value) {
+					$values[$option->name][$i] = $value->value;
+					++$i;
+				}
+				if(count($option->values) <= 0) {
+					$values[$option->name][$i] = false;
+				}
+			}
+			return $values;
+		}
+
+		public function printManual()
+		{
+			global $argv;
+			echo "Usage: php " . $argv[0] . " <options>\n";
+			echo "Options:\n";
+			foreach ($this->options as $option) {
+				if($option->optional) {
+					echo "[" . $this->flagPrefix . $option->name . "]\t";
 				} else {
-
-					// This is a boolean flag only
-					$this->flags[$flag]['values'] = [true];
-
+					echo $this->flagPrefix . $option->name . "\t";
 				}
-
-				// Indicator for non optionals
-				$this->flags[$flag]['set'] = true;
-
-			} else if($is_flag===false) {
-
-				//echo "Unflagged value $flag, added to common...\n";
-				// Create commons if it does not exist
-				if(array_key_exists('common', $this->flags)===false || array_key_exists('values', $this->flags['common'])===false) {
-					$this->flags['common'] = ['values' => []];
+				foreach ($option->values as $value) {
+					if(strlen($value->description) > 0)
+						echo "<" . $value->description . ":" . $value->getPrintableType() . "> ";
 				}
-
-				// Add the value to the common flags
-				$this->flags['common']['values'][ count($this->flags['common']['values']) ] = $argv[$i];
-
-			} else {
-				echo "Unknown option $flag, skipping...\n";
+				echo "\n\t" . $option->description . "\n";
 			}
 		}
-	}
 
-	/**
-	 * Determines if all optionals where set
-	 */
-	private function checkForOptionals()
-	{
-		foreach ($this->flags as $flag => $values) {
-			if(array_key_exists('optional', $values) && $values['optional']===false) {
-				// The value is non optional and should have been set
-				if(array_key_exists('set', $values) === false) {
-					$this->non_optionals_set = false;
-					return;
+		private function processOptions()
+		{
+			global $argv;
+			for ($i = 1; $i < count($argv); ++$i) {
+				// Check whether this argument is a flag or a value
+				$is_flag = strcmp(substr($argv[$i], 0, 1), $this->flagPrefix)===0;
+
+				$flag = $is_flag ? substr($argv[$i], 1) : $argv[$i];
+				$option = $is_flag ? $this->getOption($flag) : false;
+
+				if($is_flag && $option!==false) {
+					$option->set = true;
+					if(count($option->values) <= 0) {
+						// This value is a flag only
+						$option->setTrue();
+					} else {
+						// loop over values
+						for ($j=0; $j < count($option->values); ++$j) {
+							// Get the next value from cli
+							++$i;
+							// Check if end is reached
+							if($i >= count($argv))
+								return;
+							// Check if this is another flag
+							$no_value = strcmp(substr($argv[$i], 0, 1), $this->flagPrefix)===0;
+							if($no_value) {
+								$i--;
+								break;
+							}
+							// Add a value
+							$option->setValue($argv[$i], $j);
+						}
+					}
+				} else {
+					echo "Undefined option $flag, skipping...\n";
 				}
-
 			}
 		}
-	}
 
-	/**
-	 * Returns the casted value with it's specific type
-	 *
-	 * @param  CGI_TYPE $cgi_type The data type
-	 * @param  mixed    $value    The value
-	 *
-	 * @return mixed              The casted type or the original value on fail
-	 */
-	private function getValueByType($cgi_type, $value) {
-		if($cgi_type===CGI_TYPE::STRING) return strval($value);
-		if($cgi_type===CGI_TYPE::BOOL) return boolval($value);
-		if($cgi_type===CGI_TYPE::INT) return intval($value);
-		if($cgi_type===CGI_TYPE::FLOAT) return doubleval($value);
-		return $value;
-	}
+		private function checkOptionals()
+		{
+			foreach ($this->options as $option) {
+				// Check if the flag itself is non optional and not set
+				if($option->optional===false && $option->set===false) {
+					echo "The option " . $option->name . " is not optional.\n";
+					$this->printManual();
+					die;
+				}
+				// Check all values for optionality
+				foreach ($option->values as $value) {
+					if($value->optional===false && $value->set===false) {
+						echo "The option " . $option->name . " has non optional values.\n";
+						$this->printManual();
+						die;
+					}
+				}
+			}
+		}
 
+		private function getOption($name)
+		{
+			foreach ($this->options as $option) {
+				if ($option->name===$name) return $option;
+			}
+			return false;
+		}
+
+	}
 }
