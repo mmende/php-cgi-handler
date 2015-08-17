@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-namespace CGI {
+namespace CLI {
 	/**
 	 * These are the available types
 	 */
