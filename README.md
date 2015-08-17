@@ -6,7 +6,7 @@ The classes are in the `CLI` namespace. To create a `\CLI\Handler` instance you 
 The options as well as the options values can be set to non optional. If a non optional was not set the manual will be printed automatically and the user will be informed about the non optional option or value. The values will automatically be casted to the specified type and can be accessed with `get($option, $index=0)` or in the array `getAll()`.
 
 ```php
-namespace cli;
+namespace CLI;
 
 include __DIR__ . '/../src/cli_handler.php';
 
