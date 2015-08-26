@@ -24,6 +24,33 @@
  */
 
 namespace CLI {
+
+	/**
+	 * The colors available for cli
+	 */
+	abstract class COLOR {
+		const BLACK = 30;
+		const BLUE = 34;
+		const GREEN = 32;
+		const CYAN = 36;
+		const RED = 31;
+		const PURPLE = 35;
+		const BROWN = 33;
+		const LIGHTGRAY = 37; 
+	}
+
+	/**
+	 * Wraps $msg with a cli color code
+	 *
+	 * @param  string $msg   The message to colorize
+	 * @param  int    $color A color code
+	 *
+	 * @return string        The colorized string
+	 */
+	function _c($msg, $color) {
+		return "\033[" . $color . "m " . $msg . " \033[0m";
+	}
+
 	/**
 	 * These are the available types
 	 */
@@ -34,6 +61,9 @@ namespace CLI {
 		const FLOAT = 3;
 	}
 
+	/**
+	 * A value to add for an option
+	 */
 	class Value {
 		public $type;
 		public $description;
@@ -81,6 +111,9 @@ namespace CLI {
 		}
 	}
 
+	/**
+	 * An option (flag) fetch from command line
+	 */
 	class Option {
 		public $name;
 		public $description;
@@ -121,12 +154,15 @@ namespace CLI {
 		}
 	}
 
+	/**
+	 * The Handler
+	 */
 	class Handler {
 
 		private $options;
 		private $flagPrefix;
 
-		function __construct($options=[], $flagPrefix='-') {
+		function __construct($options=[], $flagPrefix='--') {
 			$this->options = $options;
 			$this->flagPrefix = $flagPrefix;
 
@@ -169,19 +205,19 @@ namespace CLI {
 		public function printManual()
 		{
 			global $argv;
-			echo "Usage: php " . $argv[0] . " <options>\n";
-			echo "Options:\n";
+			echo _c("Usage: ", COLOR::LIGHTGRAY) . "\n\t" . _c("php", COLOR::RED) . _c($argv[0], COLOR::PURPLE) . _c(" <options>", COLOR::BLUE) . "\n\n";
+			echo _c("Options:", COLOR::LIGHTGRAY) . "\n\n";
 			foreach ($this->options as $option) {
 				if($option->optional) {
-					echo "[" . $this->flagPrefix . $option->name . "]\t";
+					echo _c("[" . $this->flagPrefix . $option->name . "]", COLOR::BLUE) . "\n\t";
 				} else {
-					echo $this->flagPrefix . $option->name . "\t";
+					echo _c($this->flagPrefix . $option->name, COLOR::BLUE) . "\n\t";
 				}
 				foreach ($option->values as $value) {
 					if(strlen($value->description) > 0)
-						echo "<" . $value->description . ":" . $value->getPrintableType() . "> ";
+						echo _c($value->getPrintableType(), COLOR::BROWN) . _c("<" . $value->description . "> ", COLOR::RED) . "\n\t";
 				}
-				echo "\n\t" . $option->description . "\n";
+				echo " " . $option->description . "\n\n";
 			}
 		}
 
@@ -190,9 +226,9 @@ namespace CLI {
 			global $argv;
 			for ($i = 1; $i < count($argv); ++$i) {
 				// Check whether this argument is a flag or a value
-				$is_flag = strcmp(substr($argv[$i], 0, 1), $this->flagPrefix)===0;
+				$is_flag = strcmp(substr($argv[$i], 0, strlen($this->flagPrefix)), $this->flagPrefix)===0;
 
-				$flag = $is_flag ? substr($argv[$i], 1) : $argv[$i];
+				$flag = $is_flag ? substr($argv[$i], strlen($this->flagPrefix)) : $argv[$i];
 				$option = $is_flag ? $this->getOption($flag) : false;
 
 				if($is_flag && $option!==false) {
@@ -209,7 +245,7 @@ namespace CLI {
 							if($i >= count($argv))
 								return;
 							// Check if this is another flag
-							$no_value = strcmp(substr($argv[$i], 0, 1), $this->flagPrefix)===0;
+							$no_value = strcmp(substr($argv[$i], 0, strlen($this->flagPrefix)), $this->flagPrefix)===0;
 							if($no_value) {
 								$i--;
 								break;
@@ -229,7 +265,7 @@ namespace CLI {
 			foreach ($this->options as $option) {
 				// Check if the flag itself is non optional and not set
 				if($option->optional===false && $option->set===false) {
-					echo "The option " . $option->name . " is not optional.\n";
+					echo "\n" . _c("The option " . $this->flagPrefix . $option->name . " is not optional.", COLOR::RED) . "\n\n";
 					$this->printManual();
 					die;
 				}
@@ -237,7 +273,7 @@ namespace CLI {
 				if($option->set===true)
 					foreach ($option->values as $value) {
 						if($value->optional===false && $value->set===false) {
-							echo "The option " . $option->name . " has non optional values.\n";
+							echo "\n" . _c("The option " . $this->flagPrefix . $option->name . " has non optional values.", COLOR::RED) . "\n\n";
 							$this->printManual();
 							die;
 						}
