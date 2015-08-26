@@ -48,7 +48,7 @@ if($cli->get('help')) {
 }
 ```
 
-A simple example application can be seen in the demo.php and would then e.g. called like `$ php demo/demo.php -file test.audio -trim 10.5 42.1`.
+A simple example application can be seen in the demo.php and would then e.g. called like `$ php demo/demo.php --file test.audio --trim 10.5 42.1`.
 
 ## Methods
 
